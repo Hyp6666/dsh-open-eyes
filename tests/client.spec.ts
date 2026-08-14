@@ -74,19 +74,26 @@ function connection() {
   }
 }
 
+function slots() {
+  return {
+    register: vi.fn(() => () => undefined),
+    entries: vi.fn(() => []),
+  }
+}
+
 describe('browser conversation bridge', () => {
   it('installs on the concrete conversation service and restores the original method on unload', () => {
     const fake = conversation()
     const original = fake.value.sendSession
     let dispose: (() => void) | undefined
     ClientPlugin.apply({
-      get: name => name === 'conversation' ? fake.value : name === 'connection' ? connection() : undefined,
+      get: name => name === 'conversation' ? fake.value : name === 'connection' ? connection() : name === 'slots' ? slots() : undefined,
       effect: execute => {
         dispose = execute()
         return undefined
       },
     })
-    expect(ClientPlugin.inject).toEqual(['conversation', 'connection'])
+    expect(ClientPlugin.inject).toEqual(['conversation', 'connection', 'slots'])
     expect(fake.value.sendSession).not.toBe(original)
     dispose?.()
     expect(fake.value.sendSession).toBe(original)
@@ -109,7 +116,7 @@ describe('browser conversation bridge', () => {
     let dispose: (() => void) | undefined
 
     ClientPlugin.apply({
-      get: name => name === 'conversation' ? traced : name === 'connection' ? connection() : undefined,
+      get: name => name === 'conversation' ? traced : name === 'connection' ? connection() : name === 'slots' ? slots() : undefined,
       effect: execute => {
         dispose = execute()
         return undefined
@@ -147,7 +154,7 @@ describe('browser conversation bridge', () => {
     let dispose: (() => void) | undefined
 
     ClientPlugin.apply({
-      get: name => name === 'conversation' ? traced : name === 'connection' ? connection() : undefined,
+      get: name => name === 'conversation' ? traced : name === 'connection' ? connection() : name === 'slots' ? slots() : undefined,
       effect: execute => {
         dispose = execute()
         return undefined

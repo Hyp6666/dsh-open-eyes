@@ -146,7 +146,7 @@ suite('packed package install in an isolated DSH web profile', () => {
       dsh: {
         client: {
           platform: 'web',
-          inject: ['@deepseek-ai/dsh-client-ui-conversation'],
+          inject: ['@deepseek-ai/dsh-client-connection', '@deepseek-ai/dsh-client-ui-conversation'],
         },
       },
     })

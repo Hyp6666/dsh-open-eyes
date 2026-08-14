@@ -1,0 +1,248 @@
+import { describe, expect, it, vi } from 'vitest'
+import { ATTACHMENT_LINK_LABEL, projectBridgeContent } from '../src/client/chat-render.js'
+import type { ChatContentBlock } from '../src/client/chat-render.js'
+import { apply as asyncApply } from '../src/client/index.js'
+
+function bridgeLink(index: number, attachmentId = `att-${index}`): string {
+  return `[${ATTACHMENT_LINK_LABEL} ${index}](vision-bridge://attachment/v1/session-1/${attachmentId}?media=image%2Fpng&bytes=1200&width=60&height=40)`
+}
+
+function text(text: string): ChatContentBlock {
+  return { type: 'text', text }
+}
+
+describe('projectBridgeContent', () => {
+  it('leaves ordinary user text completely untouched', () => {
+    const content = [text('What is in this chart?')]
+    const result = projectBridgeContent(content)
+    expect(result.bridged).toBe(false)
+    expect(result.content).toBe(content)
+    expect(result.question).toBe('What is in this chart?')
+  })
+
+  it('leaves non-text blocks untouched when no bridge links exist', () => {
+    const image = { type: 'image', attachment: { attachmentId: 'native-1' } }
+    const content = [text('native turn'), image as ChatContentBlock]
+    const result = projectBridgeContent(content)
+    expect(result.bridged).toBe(false)
+    expect(result.content).toBe(content)
+  })
+
+  it('projects a bridged turn into question text plus image blocks', () => {
+    const result = projectBridgeContent([
+      text(`Read the error code.\n\n${bridgeLink(1)}\n${bridgeLink(2)}`),
+    ])
+    expect(result.bridged).toBe(true)
+    expect(result.question).toBe('Read the error code.')
+    const images = result.content.filter((block) => block.type === 'image')
+    expect(images).toHaveLength(2)
+    expect(images[0]).toEqual({
+      type: 'image',
+      attachment: {
+        attachmentId: 'att-1',
+        mediaType: 'image/png',
+        bytes: 1200,
+        width: 60,
+        height: 40,
+      },
+    })
+    expect(result.content.find((block) => block.type === 'text')).toEqual({
+      type: 'text',
+      text: 'Read the error code.',
+    })
+  })
+
+  it('keeps the question when it mixes plain text around links', () => {
+    const result = projectBridgeContent([
+      text(`Before ${bridgeLink(1)} after`),
+    ])
+    expect(result.question).toBe('Before  after')
+  })
+
+  it('renders a links-only turn as image blocks without an empty bubble text', () => {
+    const result = projectBridgeContent([text(`${bridgeLink(1)}`)])
+    expect(result.bridged).toBe(true)
+    expect(result.question).toBe('')
+    expect(result.content.filter((block) => block.type === 'text')).toHaveLength(0)
+    expect(result.content.filter((block) => block.type === 'image')).toHaveLength(1)
+  })
+
+  it('never matches similar-looking links that are not bridge tokens', () => {
+    const content = [
+      text('[Attached image 1](https://example.test/a.png)'),
+      text('[Attached image 2](vision-bridge://other/v1/x)'),
+      text('Attached image 3'),
+    ]
+    const result = projectBridgeContent(content)
+    expect(result.bridged).toBe(false)
+    expect(result.content).toBe(content)
+  })
+
+  it('survives a malformed bridge token by rendering a null attachment block', () => {
+    const result = projectBridgeContent([
+      text(`[Attached image 1](vision-bridge://attachment/v1/session-1/not-a-valid-%E2%80-ref)`),
+    ])
+    expect(result.bridged).toBe(true)
+    const image = result.content.find((block) => block.type === 'image')
+    expect(image).toEqual({ type: 'image', attachment: null })
+  })
+})
+
+describe('chat node slot registration', () => {
+  const apply = asyncApply
+
+  function slotsService(stockFor: Record<string, (props: never) => unknown>) {
+    const registrations: { name: string; key: string; priority: number; dispose: () => void }[] = []
+    const entries: { component: (props: never) => unknown; options: { key?: string; priority?: number | undefined } }[] =
+      Object.entries(stockFor).map(([key, component]) => ({
+        component,
+        options: { key },
+      }))
+    return {
+      value: {
+        register: vi.fn((options: { name: string; key: string; priority?: number }, component: (props: never) => unknown) => {
+          const record = { name: options.name, key: options.key, priority: options.priority ?? 0, dispose: () => {} }
+          registrations.push(record)
+          entries.push({
+            component,
+            options: options.priority === undefined ? { key: options.key } : { key: options.key, priority: options.priority },
+          })
+          return () => {
+            const index = entries.findIndex((entry) => entry.component === component)
+            if (index >= 0) entries.splice(index, 1)
+          }
+        }),
+        entries: vi.fn((name: string) => (name === 'conversation.chat.node' ? [...entries] : [])),
+      },
+      registrations,
+    }
+  }
+
+  function conversation() {
+    const attachment = {
+      kind: 'image' as const,
+      id: 'draft-1',
+      previewUrl: 'blob:test',
+      file: new File([Uint8Array.from([1])], 'a.png', { type: 'image/png' }),
+    }
+    return {
+      sendSession: vi.fn(async () => undefined),
+      draftImages: vi.fn(() => [attachment]),
+      releaseDraftImages: vi.fn(),
+    }
+  }
+
+  function connection() {
+    return {
+      api: {
+        sessions: {
+          models: vi.fn(async () => ({
+            result: { ok: true as const, value: { current: { provider: 'p', model: 'm' } } },
+          })),
+        },
+      },
+    }
+  }
+
+  function context(services: Record<string, unknown>) {
+    const disposers: (() => void)[] = []
+    return {
+      value: {
+        get: (name: string) => services[name],
+        effect: (execute: () => (() => void)) => {
+          disposers.push(execute())
+          return undefined
+        },
+      },
+      dispose: () => {
+        for (const dispose of disposers.reverse()) dispose()
+        disposers.length = 0
+      },
+    }
+  }
+
+  it('registers user and steering cells below stock priority and disposes them', () => {
+    const stock = vi.fn(() => 'stock')
+    const slots = slotsService({ user: stock as (props: never) => unknown })
+    const ctx = context({ conversation: conversation(), connection: connection(), slots: slots.value })
+    apply(ctx.value)
+    expect(slots.registrations).toHaveLength(2)
+    expect(slots.registrations.map((r) => r.key).sort()).toEqual(['steering', 'user'])
+    expect(slots.registrations.every((r) => r.name === 'conversation.chat.node' && r.priority < 0)).toBe(true)
+    const before = slots.value.entries('conversation.chat.node').length
+    ctx.dispose()
+    expect(slots.value.entries('conversation.chat.node')).toHaveLength(before - 2)
+    expect(slots.value.entries('conversation.chat.node').every((entry) => entry.component !== undefined)).toBe(true)
+  })
+
+  it('delegates ordinary messages to the stock renderer with identical props', () => {
+    const stock = vi.fn((props: never) => ({ stock: props }))
+    const slots = slotsService({ user: stock as (props: never) => unknown })
+    const ctx = context({ conversation: conversation(), connection: connection(), slots: slots.value })
+    apply(ctx.value)
+    const bridge = slots.value
+      .entries('conversation.chat.node')
+      .find((entry) => entry.options.key === 'user' && (entry.options.priority ?? 0) !== 0)
+    const props = { node: { kind: 'user', data: { content: [text('plain question')] } }, t: (k: string) => k }
+    const result = (bridge!.component as unknown as (p: unknown) => unknown)(props)
+    expect(stock).toHaveBeenCalledWith(props)
+    expect(result).toEqual({ stock: props })
+    ctx.dispose()
+  })
+
+  it('hands the stock renderer upgraded content for a bridged message', () => {
+    const stock = vi.fn((props: never) => ({ stock: props }))
+    const slots = slotsService({ user: stock as (props: never) => unknown })
+    const ctx = context({ conversation: conversation(), connection: connection(), slots: slots.value })
+    apply(ctx.value)
+    const bridge = slots.value
+      .entries('conversation.chat.node')
+      .find((entry) => entry.options.key === 'user' && (entry.options.priority ?? 0) !== 0)
+    const originalNode = {
+      kind: 'user',
+      data: { content: [text(`Question\n\n${bridgeLink(1)}`)], seq: 3, time: 42 },
+    }
+    ;(bridge!.component as unknown as (p: unknown) => unknown)({ node: originalNode })
+    const call = stock.mock.calls[0]![0] as unknown as { node: typeof originalNode }
+    expect(call.node.data.content).toEqual([
+      { type: 'text', text: 'Question' },
+      {
+        type: 'image',
+        attachment: { attachmentId: 'att-1', mediaType: 'image/png', bytes: 1200, width: 60, height: 40 },
+      },
+    ])
+    // The durable node itself is never mutated.
+    expect(originalNode.data.content[0]).toEqual({ type: 'text', text: `Question\n\n${bridgeLink(1)}` })
+    ctx.dispose()
+  })
+
+  it('renders nothing when no stock renderer is available for a bridged message', () => {
+    const slots = slotsService({})
+    const ctx = context({ conversation: conversation(), connection: connection(), slots: slots.value })
+    apply(ctx.value)
+    const bridge = slots.value
+      .entries('conversation.chat.node')
+      .find((entry) => entry.options.key === 'user')
+    const result = (bridge!.component as unknown as (p: unknown) => unknown)({
+      node: { kind: 'user', data: { content: [text(`Q\n\n${bridgeLink(1)}`)] } },
+    })
+    expect(result).toBeNull()
+    ctx.dispose()
+  })
+
+  it('still patches and restores sendSession alongside the presentation layer', () => {
+    const fake = conversation()
+    const original = fake.sendSession
+    const slots = slotsService({ user: vi.fn() })
+    const ctx = context({ conversation: fake, connection: connection(), slots: slots.value })
+    apply(ctx.value)
+    expect(fake.sendSession).not.toBe(original)
+    ctx.dispose()
+    expect(fake.sendSession).toBe(original)
+  })
+
+  it('requires the slots service at install time', () => {
+    const ctx = context({ conversation: conversation(), connection: connection() })
+    expect(() => apply(ctx.value)).toThrow(/slots service/)
+  })
+})

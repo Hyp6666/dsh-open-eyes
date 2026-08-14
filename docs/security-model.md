@@ -22,6 +22,10 @@ The model-visible bridge token contains a session id plus the content-addressed 
 
 If the native main model declares image input—or its declaration is absent—none of the bridge image-storage path runs: the ordinary DSH attachment and model adapter own the data flow. The plugin never uses a rejected prompt as a capability probe and never caches a model capability verdict. It also keeps no answer cache or in-memory image registry. DSH's content-addressed store may deduplicate identical encoded bytes; attachment retention and garbage collection remain DSH concerns.
 
+## Chat-history presentation
+
+The client registers the `conversation.chat.node` slot's `user` and `steering` cells below the stock conversation renderers. For rows whose durable text contains bridge attachment links it derives a view-only content array (the user's question plus native image-attachment blocks decoded from the link tokens) and hands it to the stock renderer; every other row is rendered by the stock components with untouched props, and a missing stock renderer renders nothing rather than a degraded row. The projection never mutates the durable node, never writes to the attachment store, and adds no new network surface: image bytes resolve through the renderer's own session-authorized loader. The durable user turn remains exactly the text the model consumed, so transcript auditing is unaffected by the display upgrade.
+
 ## Remote images
 
 Remote images are off by default. When enabled, the plugin validates HTTP(S) syntax and transport policy but does not download, redirect-probe, or preflight the URL. The configured provider fetches the original URL. This avoids creating a second SSRF-capable downloader but moves retrieval behavior and network visibility to that provider. Plugin-generated pending presentation, diagnostics, and completed output display neither paths nor URL queries. DSH currently snapshots raw tool arguments before plugin execution, so query-bearing URLs may still enter task history outside the plugin-owned presentation. Do not put secrets in URL queries.

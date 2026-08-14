@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Chat-history presentation layer: bridged user turns render as the ordinary DSH thumbnail gallery above the user's question bubble. A `conversation.chat.node` slot entry (user and steering cells, below stock priority) projects bridge attachment links into the stock renderer's native image blocks and delegates rendering to the official components; ordinary rows keep their original props verbatim and disposal restores the stock cells. Durable user text and the model-facing data flow are unchanged.
+
+
 ## [0.1.0] - 2026-08-14
 
 ### Added
