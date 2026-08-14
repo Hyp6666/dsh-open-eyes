@@ -15,6 +15,7 @@
  */
 
 export const ATTACHMENT_LINK_LABEL = 'Attached image'
+export const BRIDGE_REFERENCE_FIELD = 'visionBridgeReference'
 
 export interface ChatContentBlock {
   readonly type: string
@@ -62,18 +63,18 @@ function findBridgeLinks(text: string): LinkMatch[] {
  */
 export function projectBridgeContent(content: readonly ChatContentBlock[]): BridgeContentProjection {
   const images: { type: 'image'; attachment: unknown }[] = []
-  let questionText: string | null | undefined
+  const textParts: string[] = []
+  const rest: ChatContentBlock[] = []
   let bridged = false
 
-  const next: ChatContentBlock[] = []
   for (const block of content) {
     if (block.type !== 'text' || typeof block.text !== 'string') {
-      next.push(block)
+      rest.push(block)
       continue
     }
     const links = findBridgeLinks(block.text)
     if (links.length === 0) {
-      next.push(block)
+      textParts.push(block.text)
       continue
     }
     bridged = true
@@ -87,16 +88,28 @@ export function projectBridgeContent(content: readonly ChatContentBlock[]): Brid
       images.push({ type: 'image', attachment: decodeAttachmentReference(target) })
     }
     kept += block.text.slice(cursor)
-    if (questionText === undefined) questionText = kept
-    else questionText += kept
+    textParts.push(stripGeneratedAttachmentSeparator(block.text, links, kept))
   }
 
   if (!bridged) return { bridged: false, content, question: textOf(content) }
-  const question = (questionText ?? '').trim()
+  const question = textParts.join('')
   const parts: ChatContentBlock[] = []
   if (question !== '') parts.push({ type: 'text', text: question })
   parts.push(...images)
+  parts.push(...rest)
   return { bridged: true, content: parts, question }
+}
+
+/** Remove only the two newlines added by buildBridgePrompt, never user text. */
+function stripGeneratedAttachmentSeparator(text: string, links: readonly LinkMatch[], generic: string): string {
+  const first = links[0]
+  const last = links.at(-1)
+  if (first === undefined || last === undefined || text.slice(last.end) !== '') return generic
+  for (let index = 1; index < links.length; index += 1) {
+    if (text.slice(links[index - 1]!.end, links[index]!.start) !== '\n') return generic
+  }
+  const prefix = text.slice(0, first.start)
+  return prefix.endsWith('\n\n') ? prefix.slice(0, -2) : prefix
 }
 
 function textOf(content: readonly ChatContentBlock[]): string {
@@ -128,6 +141,7 @@ function decodeAttachmentReference(value: string): unknown {
     return {
       attachmentId,
       mediaType: media,
+      [BRIDGE_REFERENCE_FIELD]: value,
       ...(Number.isSafeInteger(bytes) && bytes > 0 ? { bytes } : {}),
       ...(Number.isSafeInteger(width) && width > 0 ? { width } : {}),
       ...(Number.isSafeInteger(height) && height > 0 ? { height } : {}),

@@ -2,7 +2,7 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { describe, expect, it, vi } from 'vitest'
 import * as VisionBridge from '../src/index.js'
-import { WEB_DRAFT_ENDPOINT, WEB_IMAGE_ROUTE_ENDPOINT } from '../src/web-draft.js'
+import { WEB_ATTACHMENT_ENDPOINT, WEB_DRAFT_ENDPOINT, WEB_IMAGE_ROUTE_ENDPOINT } from '../src/web-draft.js'
 
 class FakeTools extends Service {
   readonly definitions = new Map<string, ToolDefinition>()
@@ -46,7 +46,7 @@ class FakeSessions extends Service {
   }
 
   get(sessionId: string) {
-    return sessionId === 'session-1' ? { id: sessionId } : undefined
+    return sessionId === 'session-1' ? { id: sessionId, events: [] } : undefined
   }
 }
 
@@ -87,16 +87,18 @@ describe('Cordis lifecycle', () => {
     expect(tools.definitions.size).toBe(1)
     expect(webServer.routes.has(WEB_DRAFT_ENDPOINT)).toBe(true)
     expect(webServer.routes.has(WEB_IMAGE_ROUTE_ENDPOINT)).toBe(true)
+    expect(webServer.routes.has(WEB_ATTACHMENT_ENDPOINT)).toBe(true)
     expect(vi.getTimerCount()).toBe(0)
 
     await first.dispose()
     expect(tools.definitions.has('vision_analyze')).toBe(false)
     expect(webServer.routes.has(WEB_DRAFT_ENDPOINT)).toBe(false)
     expect(webServer.routes.has(WEB_IMAGE_ROUTE_ENDPOINT)).toBe(false)
+    expect(webServer.routes.has(WEB_ATTACHMENT_ENDPOINT)).toBe(false)
 
     const second = await ctx.plugin(VisionBridge, VisionBridge.Config({}))
     expect(tools.definitions.size).toBe(1)
-    expect(webServer.routes.size).toBe(2)
+    expect(webServer.routes.size).toBe(3)
     await second.dispose()
     expect(tools.definitions.size).toBe(0)
     expect(webServer.routes.size).toBe(0)

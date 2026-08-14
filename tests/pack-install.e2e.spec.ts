@@ -18,7 +18,7 @@ suite('packed package install in an isolated DSH web profile', () => {
   let web: ChildProcessWithoutNullStreams | undefined
 
   beforeAll(async () => {
-    root = await mkdtemp(path.join(tmpdir(), 'dsh-vision-bridge-e2e-'))
+    root = await mkdtemp(path.join(tmpdir(), 'dsh-open-eyes-e2e-'))
     dshHome = path.join(root, 'dsh-home')
     const { stdout } = await run('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', root], {
       cwd: new URL('..', import.meta.url),
@@ -73,6 +73,7 @@ suite('packed package install in an isolated DSH web profile', () => {
     expect(tarEntries).toContain('package/lib/skill.js')
     expect(tarEntries).toContain('package/lib/client.js')
     expect(tarEntries).toContain('package/lib/client/index.d.ts')
+    expect(tarEntries).toContain('package/assets/dsh-open-eyes.png')
     expect(tarEntries).toContain('package/cordis.patch.yml')
     expect(tarEntries).toContain('package/skills/vision-bridge/SKILL.md')
     expect(tarEntries).toContain('package/skills/vision-bridge/references/usage.md')
@@ -80,6 +81,10 @@ suite('packed package install in an isolated DSH web profile', () => {
     expect(tarEntries.some((entry) => entry.includes('src/'))).toBe(false)
     expect(tarEntries.some((entry) => entry.includes('tests/'))).toBe(false)
     expect(tarEntries.some((entry) => entry.includes('.env'))).toBe(false)
+    expect(tarEntries).not.toContain('package/docs/release.md')
+    expect(tarEntries).not.toContain('package/AGENTS.md')
+    expect(tarEntries).not.toContain('package/CONTRIBUTING.md')
+    expect(tarEntries).not.toContain('package/SECURITY.md')
   })
 
   it('adds both rows, dumps them, removes the package, and leaves neither row', async () => {
@@ -97,29 +102,34 @@ suite('packed package install in an isolated DSH web profile', () => {
     })
     expect(installed.stdout).toContain('id: vision-bridge')
     expect(installed.stdout).toContain('id: vision-bridge-skill')
-    expect(installed.stdout).toContain("name: '@hope666/dsh-vision-bridge'")
-    expect(installed.stdout).toContain("name: '@hope666/dsh-vision-bridge/skill'")
+    expect(installed.stdout).toMatch(/^\s*name: ['"]?dsh-open-eyes['"]?\s*$/mu)
+    expect(installed.stdout).toMatch(/^\s*name: ['"]?dsh-open-eyes\/skill['"]?\s*$/mu)
 
     const origin = await startWeb(dsh, environment)
     const index = await fetch(`${origin}/`)
     expect(index.status).toBe(200)
     const html = await index.text()
-    expect(html).toContain('"id":"@hope666/dsh-vision-bridge"')
+    expect(html).toContain('"id":"dsh-open-eyes"')
     expect(html).toContain('"inject":["@deepseek-ai/dsh-client-connection","@deepseek-ai/dsh-client-ui-conversation"]')
-    const bundleUrl = /"id":"@hope666\/dsh-vision-bridge","url":"([^"]+\/client\.js\?rev=[^"]+)"/u.exec(html)?.[1]
+    const bundleUrl = /"id":"dsh-open-eyes","url":"([^"]+\/client\.js\?rev=[^"]+)"/u.exec(html)?.[1]
     expect(bundleUrl).toBeDefined()
     const bundle = await fetch(new URL(bundleUrl!, origin))
     expect(bundle.status).toBe(200)
     const bundleText = await bundle.text()
-    expect(bundleText).toContain('id: "@hope666/dsh-vision-bridge"')
+    expect(bundleText).toContain('id: "dsh-open-eyes"')
     expect(bundleText).toContain('/vision-bridge/v1/web-image-route')
+    expect(bundleText).toContain('/vision-bridge/v1/web-attachment')
     expect(bundleText).toContain('Attached image')
+    expect(bundleText).toContain('require("react")')
+    expect(bundleText).toContain('react.createElement)(stock, props)')
     expect(bundleText).not.toContain('Vision Bridge WebUI handoff')
     expect(bundleText).not.toContain('node:fs')
     const bridgeRoute = await fetch(`${origin}/vision-bridge/v1/web-drafts`)
     expect(bridgeRoute.status).toBe(405)
     const capabilityRoute = await fetch(`${origin}/vision-bridge/v1/web-image-route`)
     expect(capabilityRoute.status).toBe(405)
+    const attachmentRoute = await fetch(`${origin}/vision-bridge/v1/web-attachment`)
+    expect(attachmentRoute.status).toBe(405)
 
     const activeWeb = web
     if (activeWeb === undefined) throw new Error('packed Web process was not retained')
@@ -127,7 +137,7 @@ suite('packed package install in an isolated DSH web profile', () => {
     await onceExit(activeWeb)
     web = undefined
 
-    await run(dsh, ['plugin', '--profile', 'web', 'remove', '@hope666/dsh-vision-bridge'], {
+    await run(dsh, ['plugin', '--profile', 'web', 'remove', 'dsh-open-eyes'], {
       cwd: new URL('..', import.meta.url),
       env: environment,
       maxBuffer: 20 * 1024 * 1024,
@@ -141,7 +151,7 @@ suite('packed package install in an isolated DSH web profile', () => {
     expect(removed.stdout).not.toContain('id: vision-bridge-skill')
 
     const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')) as Record<string, unknown>
-    expect(manifest.name).toBe('@hope666/dsh-vision-bridge')
+    expect(manifest.name).toBe('dsh-open-eyes')
     expect(manifest).toMatchObject({
       dsh: {
         client: {

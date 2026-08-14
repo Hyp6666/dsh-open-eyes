@@ -10,6 +10,7 @@ describe('publish metadata for the Web client half', () => {
       exports: Record<string, unknown>
       dsh: { client?: { platform?: string; inject?: string[] } }
       files: string[]
+      peerDependencies: Record<string, string>
       scripts: Record<string, string>
     }
     expect(manifest.version).toBe('0.1.0')
@@ -25,6 +26,8 @@ describe('publish metadata for the Web client half', () => {
       ],
     })
     expect(manifest.files).toContain('lib/')
+    expect(manifest.files).toContain('assets/dsh-open-eyes.png')
+    expect(manifest.peerDependencies.react).toBe('^18.2.0')
     expect(manifest.scripts.build).toContain('tsdown')
   })
 })

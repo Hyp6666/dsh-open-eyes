@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for improving `dsh-vision-bridge`. Keep changes small, typed, and tied to a wire or security contract.
+Thank you for improving `dsh-open-eyes`. Keep changes small, typed, and tied to a wire or security contract.
 
 ## Local development
 

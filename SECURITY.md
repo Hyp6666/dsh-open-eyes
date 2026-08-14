@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability
 
-Do not open a public issue for an unpatched sensitive vulnerability. Use GitHub's private vulnerability reporting for `Hyp6666/dsh-vision-bridge` after the repository is published. If that channel is unavailable, contact the repository owner privately through their verified GitHub profile and share only enough information to establish a secure reporting channel.
+Do not open a public issue for an unpatched sensitive vulnerability. Use GitHub's private vulnerability reporting for `Hyp6666/dsh-open-eyes` after the repository is published. If that channel is unavailable, contact the repository owner privately through their verified GitHub profile and share only enough information to establish a secure reporting channel.
 
 Include the affected version, impact, minimal reproduction, and suggested mitigations. Do not include live credentials, private images, signed URLs, or third-party user data. Maintainers should acknowledge a complete report within seven days and coordinate disclosure after a fix is available.
 

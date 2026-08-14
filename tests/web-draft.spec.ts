@@ -6,8 +6,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import { Config, validateConfig } from '../src/config.js'
 import {
+  WEB_ATTACHMENT_ENDPOINT,
   WEB_DRAFT_ENDPOINT,
   WEB_IMAGE_ROUTE_ENDPOINT,
+  createWebAttachmentHandler,
   createWebDraftHandler,
   createWebImageRouteHandler,
   decodeWebAttachmentReference,
@@ -64,7 +66,8 @@ function attachmentRef(index = 0): ImageAttachmentRef {
 function fakeAttachments() {
   const validateImage = vi.fn(async () => undefined)
   const saveImage = vi.fn(async () => attachmentRef())
-  return { validateImage, saveImage }
+  const readImage = vi.fn(async (ref: ImageAttachmentRef) => ({ ref, data: new Uint8Array(png) }))
+  return { validateImage, saveImage, readImage }
 }
 
 async function post(
@@ -86,6 +89,46 @@ async function post(
 }
 
 describe('WebUI pasted-image draft admission', () => {
+  it('serves a bridge thumbnail only when the exact token is in its direct user session log', async () => {
+    const attachments = fakeAttachments()
+    const { name: _name, ...stableRef } = attachmentRef()
+    const reference = `vision-bridge://attachment/v1/session-1/${encodeURIComponent(String(stableRef.attachmentId))}?media=image%2Fpng&bytes=${stableRef.bytes}&width=1&height=1`
+    const session = {
+      events: [{
+        type: 'user/message',
+        data: {
+          source: { kind: 'user' },
+          content: [{ type: 'text', text: `Inspect this.\n\n[Attached image 1](${reference})` }],
+        },
+      }],
+    }
+    const origin = await serve(createWebAttachmentHandler({
+      attachments,
+      session: id => id === 'session-1' ? session : undefined,
+    }))
+
+    const response = await post(origin, { reference }, {}, WEB_ATTACHMENT_ENDPOINT)
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toBe('image/png')
+    expect(response.headers.get('cache-control')).toBe('private, no-store')
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array(png))
+    expect(attachments.readImage).toHaveBeenCalledWith(stableRef)
+  })
+
+  it('rejects a stored image that is not referenced by the owning direct user turn', async () => {
+    const attachments = fakeAttachments()
+    const { name: _name, ...stableRef } = attachmentRef()
+    const reference = `vision-bridge://attachment/v1/session-1/${encodeURIComponent(String(stableRef.attachmentId))}?media=image%2Fpng&bytes=${stableRef.bytes}&width=1&height=1`
+    const origin = await serve(createWebAttachmentHandler({
+      attachments,
+      session: () => ({ events: [] }),
+    }))
+    const response = await post(origin, { reference }, {}, WEB_ATTACHMENT_ENDPOINT)
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({ error: 'VISION_WEB_ATTACHMENT_NOT_REFERENCED' })
+    expect(attachments.readImage).not.toHaveBeenCalled()
+  })
+
   it('routes declared text-only models to the bridge without admitting a prompt', async () => {
     const resolveModelInfo = vi.fn(async () => ({ inputModalities: ['text'] }))
     const origin = await serve(createWebImageRouteHandler({

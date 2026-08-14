@@ -2,6 +2,10 @@ import { createVisionBridgeSendSession } from './bridge.js'
 import type { BridgeConversation, BridgeCurrentModelResolver } from './bridge.js'
 import { projectBridgeContent } from './chat-render.js'
 import type { ChatContentBlock } from './chat-render.js'
+import { createBridgeHistoryImageLoader } from './image-loader.js'
+import { PACKAGE_NAME } from '../package-name.js'
+import { createElement } from 'react'
+import type { ElementType, ReactElement } from 'react'
 
 export const inject = ['conversation', 'connection', 'slots']
 
@@ -11,7 +15,8 @@ interface ClientContextLike {
 }
 
 interface SlotEntryLike {
-  readonly component: (props: never) => unknown
+  /** React components include memo/forwardRef exotic objects, not just functions. */
+  readonly component: ElementType
   readonly options: { readonly key?: string }
 }
 
@@ -23,13 +28,13 @@ interface SlotsServiceLike {
   entries(name: string): readonly SlotEntryLike[]
 }
 
-const PATCH_MARKER = Symbol.for('dsh-vision-bridge.client.send-session')
-const RENDER_MARKER = Symbol.for('dsh-vision-bridge.client.chat-render')
+const PATCH_MARKER = Symbol.for(`${PACKAGE_NAME}.client.send-session`)
+const RENDER_MARKER = Symbol.for(`${PACKAGE_NAME}.client.chat-render`)
 const CORDIS_ORIGINAL = Symbol.for('cordis.original')
-const ACTIVE_ATTRIBUTE = 'data-dsh-vision-bridge-client'
+const ACTIVE_ATTRIBUTE = `data-${PACKAGE_NAME}-client`
 const CHAT_NODE_SLOT = 'conversation.chat.node'
 const CONVERSATION_NS = 'conversation'
-const REGISTRANT = '@hope666/dsh-vision-bridge/client'
+const REGISTRANT = `${PACKAGE_NAME}/client`
 /** Below the stock renderer's priority 0; lowest renders, so this entry wins its cells. */
 const SHADOW_PRIORITY = -100
 
@@ -117,7 +122,7 @@ function sendSessionOwner(conversation: PatchableConversation): PatchableConvers
  * original component (same props) keeps every ordinary message pixel-identical
  * without this package importing React or restyling anything.
  */
-function stockRendererFor(slots: SlotsServiceLike, key: string): ((props: never) => unknown) | null | undefined {
+function stockRendererFor(slots: SlotsServiceLike, key: string): ElementType | null | undefined {
   return slots
     .entries(CHAT_NODE_SLOT)
     .find((entry) => entry.options.key === key && !(entry.component as unknown as Record<PropertyKey, unknown>)[RENDER_MARKER])
@@ -131,7 +136,11 @@ function stockRendererFor(slots: SlotsServiceLike, key: string): ((props: never)
  * the bubble. Every other row is rendered by the stock component verbatim.
  * The durable user turn and the model-facing text are never modified.
  */
-function bridgeChatNodeRenderer(slots: SlotsServiceLike, key: string) {
+function bridgeChatNodeRenderer(
+  slots: SlotsServiceLike,
+  key: string,
+  loadBridgeImage: (attachment: unknown) => Promise<string>,
+) {
   const render = (props: never): unknown => {
     const nodeProps = props as unknown as ChatNodeProps
     const content = nodeProps?.node?.data?.content
@@ -140,16 +149,28 @@ function bridgeChatNodeRenderer(slots: SlotsServiceLike, key: string) {
     if (!projection.bridged) return stockRenderer(slots, key, props)
     const stock = stockRendererFor(slots, key)
     if (stock === undefined || stock === null) return null
-    return stock({ ...nodeProps, node: { ...nodeProps.node, data: { ...nodeProps.node.data, content: projection.content } } } as unknown as never)
+    return renderStock(stock, {
+      ...nodeProps,
+      loadImage: loadBridgeImage,
+      node: { ...nodeProps.node, data: { ...nodeProps.node.data, content: projection.content } },
+    })
   }
   ;(render as unknown as Record<PropertyKey, unknown>)[RENDER_MARKER] = true
   return render
 }
 
+function renderStock(stock: ElementType, props: Record<string, unknown>): ReactElement {
+  // The official renderer is React.memo(...), whose runtime value is an
+  // exotic component object. It must be mounted as an element; invoking it
+  // like a plain function crashes the slot and makes DSH abdicate to the
+  // lower-priority stock renderer, exposing the durable attachment links.
+  return createElement(stock, props)
+}
+
 function stockRenderer(slots: SlotsServiceLike, key: string, props: never): unknown {
   const stock = stockRendererFor(slots, key)
   if (stock === undefined || stock === null) return null
-  return stock(props)
+  return renderStock(stock, props as unknown as Record<string, unknown>)
 }
 
 /**
@@ -162,11 +183,15 @@ function stockRenderer(slots: SlotsServiceLike, key: string, props: never): unkn
  * the stock renderer relies on, which the projection passes through when it
  * delegates rendering back to the stock component.
  */
-function registerChatNodePresentation(ctx: ClientContextLike, slots: SlotsServiceLike): void {
+function registerChatNodePresentation(
+  ctx: ClientContextLike,
+  slots: SlotsServiceLike,
+  loadBridgeImage: (attachment: unknown) => Promise<string>,
+): void {
   const disposers = (['user', 'steering'] as const).map((key) =>
     slots.register(
       { name: CHAT_NODE_SLOT, key, priority: SHADOW_PRIORITY, locale: CONVERSATION_NS, registrant: REGISTRANT },
-      bridgeChatNodeRenderer(slots, key),
+      bridgeChatNodeRenderer(slots, key, loadBridgeImage),
     ),
   )
   ctx.effect(() => () => {
@@ -205,13 +230,15 @@ export function apply(ctx: ClientContextLike): void {
   }
   const original = owner.sendSession
   const wrapped = createVisionBridgeSendSession(conversation, resolveCurrentModel)
+  const historyImages = createBridgeHistoryImageLoader()
   owner[PATCH_MARKER] = original
   owner.sendSession = wrapped
   const clearActive = markActive()
-  registerChatNodePresentation(ctx, slots as SlotsServiceLike)
+  registerChatNodePresentation(ctx, slots as SlotsServiceLike, historyImages.load)
   ctx.effect(() => () => {
     if (owner.sendSession === wrapped) owner.sendSession = original
     delete owner[PATCH_MARKER]
+    historyImages.dispose()
     clearActive()
   }, 'vision-bridge: WebUI pasted-image bridge')
 }
@@ -222,8 +249,10 @@ export {
 } from './bridge.js'
 export {
   ATTACHMENT_LINK_LABEL,
+  BRIDGE_REFERENCE_FIELD,
   projectBridgeContent,
 } from './chat-render.js'
+export { createBridgeHistoryImageLoader } from './image-loader.js'
 export type {
   BridgeConversation,
   BridgeCurrentModel,

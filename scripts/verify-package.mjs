@@ -1,4 +1,4 @@
-import { access, readFile } from 'node:fs/promises'
+import { access, readFile, readdir } from 'node:fs/promises'
 import { PACKAGE_NAME, PACKAGE_NAME_AVAILABLE } from '../lib/package-name.js'
 
 const required = [
@@ -8,6 +8,7 @@ const required = [
   'lib/skill.d.ts',
   'lib/client.js',
   'lib/client/index.d.ts',
+  'assets/dsh-open-eyes.png',
   'skills/vision-bridge/SKILL.md',
   'skills/vision-bridge/references/usage.md',
   'skills/vision-bridge/references/security.md',
@@ -16,9 +17,45 @@ const required = [
 
 await Promise.all(required.map((path) => access(new URL(`../${path}`, import.meta.url))))
 
-const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+const walk = async (directory) => {
+  const entries = await readdir(directory, { withFileTypes: true })
+  return (await Promise.all(entries.map(async (entry) => {
+    const url = new URL(`${entry.name}${entry.isDirectory() ? '/' : ''}`, directory)
+    return entry.isDirectory() ? await walk(url) : [url]
+  }))).flat()
+}
+
+const builtFiles = await walk(new URL('../lib/', import.meta.url))
+if (builtFiles.some((url) => url.pathname.endsWith('.map'))) {
+  throw new Error('production lib must not contain source-map artifacts')
+}
+
+const [manifestText, clientBundle, readme, readmeZh] = await Promise.all([
+  readFile(new URL('../package.json', import.meta.url), 'utf8'),
+  readFile(new URL('../lib/client.js', import.meta.url), 'utf8'),
+  readFile(new URL('../README.md', import.meta.url), 'utf8'),
+  readFile(new URL('../README.zh-CN.md', import.meta.url), 'utf8'),
+])
+const manifest = JSON.parse(manifestText)
 if (manifest.name !== PACKAGE_NAME || manifest.version !== '0.1.0') {
   throw new Error('unexpected package identity')
+}
+if (manifest.license !== 'MIT' || manifest.repository?.url !== 'git+https://github.com/Hyp6666/dsh-open-eyes.git') {
+  throw new Error('license or repository metadata is not release-ready')
+}
+if (!readme.includes('href="./README.zh-CN.md">中文</a>') || !readme.includes('src="./assets/dsh-open-eyes.png"')) {
+  throw new Error('English README must link to 中文 and render the packaged project artwork')
+}
+if (!readmeZh.includes('href="./README.md">English</a>') || !readmeZh.includes('src="./assets/dsh-open-eyes.png"')) {
+  throw new Error('Chinese README must link back to the English default and render the packaged project artwork')
+}
+if (!manifest.files?.includes('assets/dsh-open-eyes.png')) {
+  throw new Error('README artwork is missing from the npm files allowlist')
+}
+for (const repositoryOnlyPath of ['src/', 'tests/', '.github/', 'docs/release.md', 'SECURITY.md', 'CONTRIBUTING.md', 'AGENTS.md']) {
+  if (manifest.files?.includes(repositoryOnlyPath)) {
+    throw new Error(`repository-only path must not be published: ${repositoryOnlyPath}`)
+  }
 }
 if (PACKAGE_NAME_AVAILABLE !== true || manifest.scripts?.prepublishOnly !== 'node scripts/verify-publish-name.mjs') {
   throw new Error('npm package identity is not release-ready')
@@ -28,4 +65,16 @@ if (manifest.dsh?.bundle?.patch !== './cordis.patch.yml') {
 }
 if (manifest.dsh?.client?.platform !== 'web' || manifest.exports?.['./client'] === undefined) {
   throw new Error('missing dsh.client Web bundle declaration')
+}
+if (manifest.peerDependencies?.react !== '^18.2.0' || !clientBundle.includes('require("react")')) {
+  throw new Error('Web client must reuse the DSH React runtime instead of bundling a private copy')
+}
+if (!clientBundle.includes(`id: "${PACKAGE_NAME}"`) || !clientBundle.includes(`const PACKAGE_NAME = "${PACKAGE_NAME}"`)) {
+  throw new Error('Web client module identity does not match PACKAGE_NAME')
+}
+if (!clientBundle.includes('react.createElement)(stock, props)')) {
+  throw new Error('Web client must mount the stock React renderer as an element')
+}
+if (!clientBundle.includes('/vision-bridge/v1/web-attachment')) {
+  throw new Error('Web client is missing the session-authorized history image reader')
 }

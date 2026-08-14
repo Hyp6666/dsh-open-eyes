@@ -23,12 +23,12 @@ The tool description is the zero-call readiness check. `READY` names the current
 Official package installation forms are:
 
 ```sh
-dsh plugin --profile web add @hope666/dsh-vision-bridge
-dsh plugin --profile web add ./hope666-dsh-vision-bridge-0.1.0.tgz
+dsh plugin --profile web add dsh-open-eyes
+dsh plugin --profile web add ./dsh-open-eyes-0.1.0.tgz
 dsh --profile web --dump-config
 ```
 
-The GitHub repository is `Hyp6666/dsh-vision-bridge`, while its public scoped npm package is `@hope666/dsh-vision-bridge`. GitHub and npm usernames are distinct identities. Do not install the separately published unscoped package.
+The npm package is `dsh-open-eyes`, and the intended GitHub repository is `Hyp6666/dsh-open-eyes`. GitHub and npm accounts are independent identities.
 
 Restart an already running Web profile after installation or upgrade so DSH rescans the package's `dsh.client` metadata, then reload the browser page.
 

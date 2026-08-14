@@ -1,5 +1,5 @@
 {
-  "name": "@hope666/dsh-vision-bridge",
+  "name": "dsh-open-eyes",
   "version": "0.1.0",
   "description": "A lightweight DeepSeek Harness vision delegation tool for text-only routes, with native OpenAI Responses, Chat Completions, and Anthropic Messages adapters.",
   "type": "module",
@@ -24,19 +24,16 @@
   "files": [
     "lib/",
     "skills/",
+    "assets/dsh-open-eyes.png",
     "docs/compatibility.md",
     "docs/configuration.md",
     "docs/protocol-contracts.md",
-    "docs/release.md",
     "docs/security-model.md",
     "cordis.patch.yml",
     "README.md",
     "README.zh-CN.md",
     "LICENSE",
-    "CHANGELOG.md",
-    "SECURITY.md",
-    "CONTRIBUTING.md",
-    "AGENTS.md"
+    "CHANGELOG.md"
   ],
   "dsh": {
     "bundle": {
@@ -64,12 +61,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Hyp6666/dsh-vision-bridge.git"
+    "url": "git+https://github.com/Hyp6666/dsh-open-eyes.git"
   },
   "bugs": {
-    "url": "https://github.com/Hyp6666/dsh-vision-bridge/issues"
+    "url": "https://github.com/Hyp6666/dsh-open-eyes/issues"
   },
-  "homepage": "https://github.com/Hyp6666/dsh-vision-bridge#readme",
+  "homepage": "https://github.com/Hyp6666/dsh-open-eyes#readme",
   "keywords": [
     "dsh-plugin",
     "deepseek-harness",
@@ -102,7 +99,8 @@
     "@deepseek-ai/dsh-llm": "0.1.0-rc.6",
     "@deepseek-ai/dsh-skill": "0.1.0-rc.6",
     "@deepseek-ai/dsh-tools": "0.1.0-rc.6",
-    "@deepseek-ai/schemastery": "3.18.1"
+    "@deepseek-ai/schemastery": "3.18.1",
+    "react": "^18.2.0"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/dsh-agent": {
@@ -134,7 +132,9 @@
     "@deepseek-ai/dsh-tools": "0.1.0-rc.6",
     "@deepseek-ai/schemastery": "3.18.1",
     "@types/node": "22.20.0",
+    "@types/react": "18.3.27",
     "oxlint": "1.76.0",
+    "react": "18.3.1",
     "tsdown": "0.22.2",
     "typescript": "6.0.3",
     "vitest": "4.1.8"

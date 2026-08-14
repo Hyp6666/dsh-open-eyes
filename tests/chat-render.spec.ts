@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ATTACHMENT_LINK_LABEL, projectBridgeContent } from '../src/client/chat-render.js'
+import { isValidElement, memo } from 'react'
+import { ATTACHMENT_LINK_LABEL, BRIDGE_REFERENCE_FIELD, projectBridgeContent } from '../src/client/chat-render.js'
 import type { ChatContentBlock } from '../src/client/chat-render.js'
 import { apply as asyncApply } from '../src/client/index.js'
 
@@ -41,6 +42,7 @@ describe('projectBridgeContent', () => {
       attachment: {
         attachmentId: 'att-1',
         mediaType: 'image/png',
+        [BRIDGE_REFERENCE_FIELD]: 'vision-bridge://attachment/v1/session-1/att-1?media=image%2Fpng&bytes=1200&width=60&height=40',
         bytes: 1200,
         width: 60,
         height: 40,
@@ -57,6 +59,13 @@ describe('projectBridgeContent', () => {
       text(`Before ${bridgeLink(1)} after`),
     ])
     expect(result.question).toBe('Before  after')
+  })
+
+  it('removes only the bridge separator and preserves the user text exactly', () => {
+    const original = '  Keep my spacing.\n'
+    const result = projectBridgeContent([text(`${original}\n\n${bridgeLink(1)}`)])
+    expect(result.question).toBe(original)
+    expect(result.content.find((block) => block.type === 'text')).toEqual({ type: 'text', text: original })
   })
 
   it('renders a links-only turn as image blocks without an empty bubble text', () => {
@@ -183,7 +192,7 @@ describe('chat node slot registration', () => {
   })
 
   it('delegates ordinary messages to the stock renderer with identical props', () => {
-    const stock = vi.fn((props: never) => ({ stock: props }))
+    const stock = vi.fn(() => null)
     const slots = slotsService({ user: stock as (props: never) => unknown })
     const ctx = context({ conversation: conversation(), connection: connection(), slots: slots.value })
     apply(ctx.value)
@@ -196,13 +205,15 @@ describe('chat node slot registration', () => {
       loadImage: vi.fn(async () => 'blob:thumb'),
     }
     const result = (bridge!.component as unknown as (p: unknown) => unknown)(props)
-    expect(stock).toHaveBeenCalledWith(props)
-    expect(result).toEqual({ stock: props })
+    expect(isValidElement(result)).toBe(true)
+    expect((result as { type: unknown }).type).toBe(stock)
+    expect((result as { props: unknown }).props).toEqual(props)
+    expect(stock).not.toHaveBeenCalled()
     ctx.dispose()
   })
 
-  it('forwards the locale seat t to the stock renderer for a bridged message', () => {
-    const stock = vi.fn((props: never) => ({ stock: props }))
+  it('forwards the locale seat and replaces the native loader only for a bridged message', () => {
+    const stock = vi.fn(() => null)
     const slots = slotsService({ user: stock as (props: never) => unknown })
     const ctx = context({ conversation: conversation(), connection: connection(), slots: slots.value })
     apply(ctx.value)
@@ -211,20 +222,22 @@ describe('chat node slot registration', () => {
       .find((entry) => entry.options.key === 'user' && (entry.options.priority ?? 0) !== 0)
     const t = (k: string) => k
     const loadImage = vi.fn(async () => 'blob:thumb')
-    ;(bridge!.component as unknown as (p: unknown) => unknown)({
+    const result = (bridge!.component as unknown as (p: unknown) => unknown)({
       node: { kind: 'user', data: { content: [text(`Question\n\n${bridgeLink(1)}`)] } },
       t,
       loadImage,
     })
-    const forwarded = stock.mock.calls[0]![0] as unknown as { t: unknown; loadImage: unknown; node: { kind: string } }
+    const forwarded = (result as { props: { t: unknown; loadImage: unknown; node: { kind: string } } }).props
     expect(forwarded.t).toBe(t)
-    expect(forwarded.loadImage).toBe(loadImage)
+    expect(forwarded.loadImage).not.toBe(loadImage)
+    expect(typeof forwarded.loadImage).toBe('function')
     expect(forwarded.node.kind).toBe('user')
+    expect(stock).not.toHaveBeenCalled()
     ctx.dispose()
   })
 
   it('hands the stock renderer upgraded content for a bridged message', () => {
-    const stock = vi.fn((props: never) => ({ stock: props }))
+    const stock = vi.fn(() => null)
     const slots = slotsService({ user: stock as (props: never) => unknown })
     const ctx = context({ conversation: conversation(), connection: connection(), slots: slots.value })
     apply(ctx.value)
@@ -235,17 +248,43 @@ describe('chat node slot registration', () => {
       kind: 'user',
       data: { content: [text(`Question\n\n${bridgeLink(1)}`)], seq: 3, time: 42 },
     }
-    ;(bridge!.component as unknown as (p: unknown) => unknown)({ node: originalNode })
-    const call = stock.mock.calls[0]![0] as unknown as { node: typeof originalNode }
+    const result = (bridge!.component as unknown as (p: unknown) => unknown)({ node: originalNode })
+    const call = (result as { props: { node: typeof originalNode } }).props
     expect(call.node.data.content).toEqual([
       { type: 'text', text: 'Question' },
       {
         type: 'image',
-        attachment: { attachmentId: 'att-1', mediaType: 'image/png', bytes: 1200, width: 60, height: 40 },
+        attachment: {
+          attachmentId: 'att-1',
+          mediaType: 'image/png',
+          [BRIDGE_REFERENCE_FIELD]: 'vision-bridge://attachment/v1/session-1/att-1?media=image%2Fpng&bytes=1200&width=60&height=40',
+          bytes: 1200,
+          width: 60,
+          height: 40,
+        },
       },
     ])
     // The durable node itself is never mutated.
     expect(originalNode.data.content[0]).toEqual({ type: 'text', text: `Question\n\n${bridgeLink(1)}` })
+    expect(stock).not.toHaveBeenCalled()
+    ctx.dispose()
+  })
+
+  it('mounts the official memo-shaped renderer instead of invoking it as a function', () => {
+    const inner = vi.fn(() => null)
+    const stock = memo(inner)
+    const slots = slotsService({ user: stock as unknown as (props: never) => unknown })
+    const ctx = context({ conversation: conversation(), connection: connection(), slots: slots.value })
+    apply(ctx.value)
+    const bridge = slots.value
+      .entries('conversation.chat.node')
+      .find((entry) => entry.options.key === 'user' && (entry.options.priority ?? 0) !== 0)
+    const result = (bridge!.component as unknown as (p: unknown) => unknown)({
+      node: { kind: 'user', data: { content: [text(`Question\n\n${bridgeLink(1)}`)] } },
+    })
+    expect(isValidElement(result)).toBe(true)
+    expect((result as { type: unknown }).type).toBe(stock)
+    expect(inner).not.toHaveBeenCalled()
     ctx.dispose()
   })
 

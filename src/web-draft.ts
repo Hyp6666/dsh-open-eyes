@@ -6,7 +6,7 @@ import { MAX_TOTAL_LOCAL_IMAGE_BYTES } from './config.js'
 import { takeCodePoints, VisionBridgeError } from './errors.js'
 import { detectImageMime } from './mime.js'
 
-export { WEB_DRAFT_ENDPOINT, WEB_IMAGE_ROUTE_ENDPOINT } from './web-contract.js'
+export { WEB_ATTACHMENT_ENDPOINT, WEB_DRAFT_ENDPOINT, WEB_IMAGE_ROUTE_ENDPOINT } from './web-contract.js'
 const WEB_REFERENCE_PREFIX = 'vision-bridge://attachment/v1/'
 const MAX_SESSION_ID_CHARS = 512
 const MAX_ATTACHMENT_ID_CHARS = 1_024
@@ -17,6 +17,17 @@ const REQUEST_OVERHEAD_BYTES = 64 * 1024
 type AttachmentWriter = {
   validateImage(input: SaveImageAttachment): Promise<void>
   saveImage(input: SaveImageAttachment): Promise<ImageAttachmentRef>
+}
+
+type AttachmentReader = {
+  readImage(ref: ImageAttachmentRef, signal?: AbortSignal): Promise<{
+    readonly ref: ImageAttachmentRef
+    readonly data: Uint8Array
+  }>
+}
+
+type SessionEventSource = {
+  readonly events: readonly unknown[]
 }
 
 export interface WebDraftHandlerOptions {
@@ -32,6 +43,11 @@ export interface WebImageRouteHandlerOptions {
     model: string,
   ) => Promise<{ readonly inputModalities?: readonly string[] }>
   readonly config: ResolvedConfig
+}
+
+export interface WebAttachmentHandlerOptions {
+  readonly attachments: AttachmentReader
+  readonly session: (sessionId: string) => SessionEventSource | undefined
 }
 
 interface BrowserImageInput {
@@ -117,8 +133,13 @@ export function isWebAttachmentReference(value: string): boolean {
   return value.startsWith(WEB_REFERENCE_PREFIX)
 }
 
-/** Parse and authorize a bridge-owned attachment token for exactly one agent session. */
-export function decodeWebAttachmentReference(value: string, expectedSessionId: string): ImageAttachmentRef {
+interface ParsedWebAttachmentReference {
+  readonly sessionId: string
+  readonly ref: ImageAttachmentRef
+}
+
+/** Parse one bridge-owned attachment token without granting access to its bytes. */
+function parseWebAttachmentReference(value: string): ParsedWebAttachmentReference {
   let url: URL
   try {
     url = new URL(value)
@@ -141,8 +162,8 @@ export function decodeWebAttachmentReference(value: string, expectedSessionId: s
   }
   const sessionId = decodePathSegment(segments[1]!)
   const attachmentId = decodePathSegment(segments[2]!)
-  if (sessionId !== expectedSessionId || !expectedSessionId) {
-    throw new VisionBridgeError('VISION_INVALID_ARGUMENT', 'WebUI attachment belongs to a different agent session')
+  if (!sessionId || takeCodePoints(sessionId, MAX_SESSION_ID_CHARS).truncated) {
+    throw new VisionBridgeError('VISION_INVALID_ARGUMENT', 'invalid WebUI attachment session')
   }
   if (!attachmentId || takeCodePoints(attachmentId, MAX_ATTACHMENT_ID_CHARS).truncated) {
     throw new VisionBridgeError('VISION_INVALID_ARGUMENT', 'invalid WebUI attachment id')
@@ -163,13 +184,25 @@ export function decodeWebAttachmentReference(value: string, expectedSessionId: s
     throw new VisionBridgeError('VISION_INVALID_ARGUMENT', 'invalid WebUI attachment name')
   }
   return {
-    attachmentId: AttachmentId(attachmentId),
-    mediaType,
-    bytes,
-    width,
-    height,
-    ...(name === undefined ? {} : { name }),
+    sessionId,
+    ref: {
+      attachmentId: AttachmentId(attachmentId),
+      mediaType,
+      bytes,
+      width,
+      height,
+      ...(name === undefined ? {} : { name }),
+    },
   }
+}
+
+/** Parse and authorize a bridge-owned attachment token for exactly one agent session. */
+export function decodeWebAttachmentReference(value: string, expectedSessionId: string): ImageAttachmentRef {
+  const parsed = parseWebAttachmentReference(value)
+  if (parsed.sessionId !== expectedSessionId || !expectedSessionId) {
+    throw new VisionBridgeError('VISION_INVALID_ARGUMENT', 'WebUI attachment belongs to a different agent session')
+  }
+  return parsed.ref
 }
 
 function maxRequestBytes(config: ResolvedConfig): number {
@@ -271,6 +304,89 @@ function readiness(config: ResolvedConfig) {
     configured: config.providers.length > 0,
     defaultProvider: config.defaultProvider ?? null,
     providerIds: config.providers.map(provider => provider.id),
+  }
+}
+
+function textReferencesBridgeAttachment(text: string, reference: string): boolean {
+  const suffix = `](${reference})`
+  for (const line of text.split('\n')) {
+    if (!line.startsWith('[Attached image ') || !line.endsWith(suffix)) continue
+    const label = line.slice('[Attached image '.length, line.length - suffix.length)
+    if (/^[1-9][0-9]*$/u.test(label)) return true
+  }
+  return false
+}
+
+/**
+ * The official attachment RPC only authorizes native image blocks. Bridge
+ * images deliberately remain text for a text-only main route, so authorize
+ * their history thumbnail against the exact reference in a direct user turn.
+ */
+function sessionReferencesBridgeAttachment(events: readonly unknown[], reference: string): boolean {
+  for (const event of events) {
+    if (!isRecord(event) || event.type !== 'user/message' || !isRecord(event.data)) continue
+    const source = event.data.source
+    if (!isRecord(source) || source.kind !== 'user' || !Array.isArray(event.data.content)) continue
+    for (const block of event.data.content) {
+      if (isRecord(block) && block.type === 'text' && typeof block.text === 'string'
+        && textReferencesBridgeAttachment(block.text, reference)) return true
+    }
+  }
+  return false
+}
+
+function writeImage(res: ServerResponse, value: { readonly ref: ImageAttachmentRef; readonly data: Uint8Array }): void {
+  const body = Buffer.from(value.data)
+  res.writeHead(200, {
+    'content-type': value.ref.mediaType,
+    'content-length': String(body.byteLength),
+    'cache-control': 'private, no-store',
+    'content-security-policy': "default-src 'none'",
+    'x-content-type-options': 'nosniff',
+  })
+  res.end(body)
+}
+
+/** Read a bridge image only after the owning live session durably references its exact token. */
+export function createWebAttachmentHandler(options: WebAttachmentHandlerOptions) {
+  return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+    try {
+      if (req.method !== 'POST') {
+        writeJson(res, 405, { error: 'VISION_WEB_METHOD_NOT_ALLOWED' }, { allow: 'POST' })
+        return
+      }
+      if (!sameOrigin(req)) httpError(403, 'VISION_WEB_ORIGIN_REJECTED')
+      const contentType = req.headers['content-type']?.split(';', 1)[0]?.trim().toLowerCase()
+      if (contentType !== 'application/json') httpError(415, 'VISION_WEB_CONTENT_TYPE_REJECTED')
+      const body = await readJson(req, REQUEST_OVERHEAD_BYTES)
+      if (!isRecord(body) || typeof body.reference !== 'string' || !body.reference) {
+        httpError(400, 'VISION_WEB_INVALID_ATTACHMENT_REFERENCE')
+      }
+      const reference = body.reference as string
+      let parsed: ParsedWebAttachmentReference
+      try {
+        parsed = parseWebAttachmentReference(reference)
+      } catch {
+        httpError(400, 'VISION_WEB_INVALID_ATTACHMENT_REFERENCE')
+      }
+      const session = options.session(parsed.sessionId)
+      if (session === undefined) httpError(404, 'VISION_WEB_SESSION_NOT_FOUND')
+      if (!sessionReferencesBridgeAttachment(session.events, reference)) {
+        httpError(403, 'VISION_WEB_ATTACHMENT_NOT_REFERENCED')
+      }
+      try {
+        writeImage(res, await options.attachments.readImage(parsed.ref))
+      } catch {
+        httpError(404, 'VISION_WEB_ATTACHMENT_UNAVAILABLE')
+      }
+    } catch (error) {
+      if (res.headersSent || res.destroyed) return
+      if (error instanceof WebDraftHttpError) {
+        writeJson(res, error.status, { error: error.code })
+        return
+      }
+      writeJson(res, 500, { error: 'VISION_WEB_INTERNAL' })
+    }
   }
 }
 

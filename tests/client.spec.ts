@@ -224,7 +224,7 @@ describe('browser conversation bridge', () => {
     expect(fake.value.releaseDraftImages).toHaveBeenCalledWith([fake.attachment])
   })
 
-  it('uses a concrete default question and only ordinary attachment links for image-only input', () => {
+  it('adds no text on the user\'s behalf for image-only input', () => {
     const reference = 'vision-bridge://attachment/v1/session-1/ref?media=image%2Fpng&bytes=9&width=1&height=1'
     const prompt = buildBridgePrompt('', {
       configured: true,
@@ -232,7 +232,19 @@ describe('browser conversation bridge', () => {
       providerIds: ['primary'],
       references: [reference],
     })
-    expect(prompt).toBe(`Give a concise visual overview, distinguishing visible facts from uncertain inferences.\n\n[Attached image 1](${reference})`)
+    expect(prompt).toBe(`[Attached image 1](${reference})`)
+  })
+
+  it('preserves the user\'s existing text exactly before attachment links', () => {
+    const reference = 'vision-bridge://attachment/v1/session-1/ref?media=image%2Fpng&bytes=9&width=1&height=1'
+    const original = '  Read this exact text.\n'
+    const prompt = buildBridgePrompt(original, {
+      configured: true,
+      defaultProvider: 'primary',
+      providerIds: ['primary'],
+      references: [reference],
+    })
+    expect(prompt).toBe(`${original}\n\n[Attached image 1](${reference})`)
   })
 
   it('keeps native multimodal submission entirely on the official conversation path', async () => {

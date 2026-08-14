@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
-**Goal:** Produce a tested, packed, profile-installable `@hope666/dsh-vision-bridge` npm bundle for the `dsh-vision-bridge` project.
+**Goal:** Produce a tested, packed, profile-installable `dsh-open-eyes` npm bundle while preserving the `vision-bridge` runtime interfaces.
 
 **Architecture:** A thin Cordis root registers one typed tool, while focused modules own config normalization, image admission, credentials, bounded HTTP, results, and three independent provider contracts. A separate package export registers the embedded runtime Skill.
 

@@ -1,14 +1,19 @@
 import type { UserConfig } from 'tsdown'
 
+// The browser loader banner is parsed before package code executes; keep this
+// build-time mirror covered by scripts/verify-package.mjs.
+const PACKAGE_NAME = 'dsh-open-eyes'
+
 const config: UserConfig = {
-  name: '@hope666/dsh-vision-bridge/client',
+  name: `${PACKAGE_NAME}/client`,
   entry: { client: 'src/client/index.ts' },
   outDir: 'lib',
   format: 'cjs',
   platform: 'browser',
   target: 'es2023',
+  deps: { neverBundle: ['react'] },
   dts: false,
-  sourcemap: true,
+  sourcemap: false,
   clean: false,
   define: {
     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV ?? 'production'),
@@ -17,7 +22,7 @@ const config: UserConfig = {
   },
   outputOptions: {
     entryFileNames: 'client.js',
-    banner: 'window.__ModuleLoader__.load({ id: "@hope666/dsh-vision-bridge", factory: (require) => {',
+    banner: `window.__ModuleLoader__.load({ id: ${JSON.stringify(PACKAGE_NAME)}, factory: (require) => {`,
     footer: 'return module.exports; } });',
     intro: 'var module = { exports: {} }; var exports = module.exports;',
   },

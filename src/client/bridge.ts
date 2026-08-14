@@ -45,8 +45,6 @@ export interface WebImageRoutingResponse {
   readonly providerIds: readonly string[]
 }
 
-const DEFAULT_VISUAL_QUESTION = 'Give a concise visual overview, distinguishing visible facts from uncertain inferences.'
-
 interface SerializedDraft {
   readonly name: string
   readonly mediaType: string
@@ -156,7 +154,6 @@ async function uploadDrafts(
  * own words and ordinary attachment links.
  */
 export function buildBridgePrompt(userText: string, upload: WebDraftUploadResponse): string {
-  const question = userText.trim() || DEFAULT_VISUAL_QUESTION
   if (!upload.configured) {
     throw new Error('Vision Bridge is installed but not configured. Configure a provider and Credential Reference before sending pasted images.')
   }
@@ -166,7 +163,9 @@ export function buildBridgePrompt(userText: string, upload: WebDraftUploadRespon
   const attachments = upload.references
     .map((reference, index) => `[Attached image ${index + 1}](${reference})`)
     .join('\n')
-  return `${question}\n\n${attachments}`
+  // Never synthesize words on the user's behalf. Preserve their text byte for
+  // byte; an image-only send is represented only by its attachment links.
+  return userText === '' ? attachments : `${userText}\n\n${attachments}`
 }
 
 /** Wrap the concrete Web conversation submission seam while preserving all text-only behavior. */

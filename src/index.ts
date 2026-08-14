@@ -3,8 +3,10 @@ import { Config as ConfigSchema, validateConfig } from './config.js'
 import type { Config as VisionBridgeConfig } from './config.js'
 import { createVisionTool } from './tool.js'
 import {
+  createWebAttachmentHandler,
   createWebDraftHandler,
   createWebImageRouteHandler,
+  WEB_ATTACHMENT_ENDPOINT,
   WEB_DRAFT_ENDPOINT,
   WEB_IMAGE_ROUTE_ENDPOINT,
 } from './web-draft.js'
@@ -20,12 +22,20 @@ export function apply(ctx: Context, config: Config) {
   ctx.inject(['webServer', 'sessions', 'llm'], (webCtx) => {
     const services = webCtx as Context & {
       webServer: { register(route: { kind: 'exact'; path: string; handler: ReturnType<typeof createWebDraftHandler> }): () => void }
-      sessions: { get(sessionId: string): unknown }
+      sessions: { get(sessionId: string): { readonly events: readonly unknown[] } | undefined }
       llm: {
         resolveModelInfo(provider: string, model: string): Promise<{ readonly inputModalities?: readonly string[] }>
       }
     }
     const hasSession = (sessionId: string) => services.sessions.get(sessionId) !== undefined
+    const disposeAttachments = services.webServer.register({
+      kind: 'exact',
+      path: WEB_ATTACHMENT_ENDPOINT,
+      handler: createWebAttachmentHandler({
+        attachments: webCtx.attachments,
+        session: sessionId => services.sessions.get(sessionId),
+      }),
+    })
     const disposeDrafts = services.webServer.register({
       kind: 'exact',
       path: WEB_DRAFT_ENDPOINT,
@@ -50,6 +60,7 @@ export function apply(ctx: Context, config: Config) {
     return () => {
       disposeRouting()
       disposeDrafts()
+      disposeAttachments()
     }
   })
   return ctx.tools.register(createVisionTool(ctx, resolved))
@@ -59,5 +70,5 @@ export { VisionBridgeError, VISION_ERROR_CODES } from './errors.js'
 export type { VisionErrorCode } from './errors.js'
 export type { VisionAnalyzeResult } from './result.js'
 export type { AuthMode, JsonValue, Protocol, ProviderConfig } from './config.js'
-export { WEB_DRAFT_ENDPOINT, WEB_IMAGE_ROUTE_ENDPOINT } from './web-draft.js'
+export { WEB_ATTACHMENT_ENDPOINT, WEB_DRAFT_ENDPOINT, WEB_IMAGE_ROUTE_ENDPOINT } from './web-draft.js'
 export { PACKAGE_NAME, PACKAGE_NAME_AVAILABLE } from './package-name.js'
