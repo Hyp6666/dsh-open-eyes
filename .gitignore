@@ -1,0 +1,9 @@
+node_modules/
+.pnpm-store/
+lib/
+*.tgz
+.DS_Store
+coverage/
+.env
+.env.*
+!.env.example

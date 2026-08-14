@@ -1,0 +1,7 @@
+- insert:
+    - id: vision-bridge
+      name: '@hope666/dsh-vision-bridge'
+      config: {}
+    - id: vision-bridge-skill
+      name: '@hope666/dsh-vision-bridge/skill'
+      config: {}

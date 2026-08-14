@@ -1,0 +1,50 @@
+name: Bug report
+description: Report a reproducible defect without disclosing secrets or private images.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not report unpatched sensitive vulnerabilities here; use the private channel in SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: Package and DSH versions
+      placeholder: '@hope666/dsh-vision-bridge 0.1.0; @deepseek-ai/dsh 0.1.0-rc.6'
+    validations:
+      required: true
+  - type: dropdown
+    id: protocol
+    attributes:
+      label: Protocol
+      options:
+        - openai-responses
+        - openai-chat-completions
+        - anthropic-messages
+        - lifecycle/configuration
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction
+      description: Redact keys, signed URL queries, private paths, and image content.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and stable error code
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed credentials, URL queries, private images, and sensitive provider responses.
+          required: true

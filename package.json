@@ -1,0 +1,142 @@
+{
+  "name": "@hope666/dsh-vision-bridge",
+  "version": "0.1.0",
+  "description": "A lightweight DeepSeek Harness vision delegation tool for text-only routes, with native OpenAI Responses, Chat Completions, and Anthropic Messages adapters.",
+  "type": "module",
+  "main": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./skill": {
+      "types": "./lib/skill.d.ts",
+      "default": "./lib/skill.js"
+    },
+    "./client": {
+      "types": "./lib/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/",
+    "skills/",
+    "docs/compatibility.md",
+    "docs/configuration.md",
+    "docs/protocol-contracts.md",
+    "docs/release.md",
+    "docs/security-model.md",
+    "cordis.patch.yml",
+    "README.md",
+    "README.zh-CN.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "CONTRIBUTING.md",
+    "AGENTS.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ]
+    }
+  },
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint src tests scripts vitest.config.ts tsdown.config.ts",
+    "test": "vitest run --exclude tests/pack-install.e2e.spec.ts",
+    "test:e2e": "pnpm run build && DSH_PACK_E2E=1 vitest run tests/pack-install.e2e.spec.ts",
+    "verify:package": "node scripts/verify-package.mjs",
+    "verify:release": "pnpm run typecheck && pnpm run lint && pnpm run test && pnpm run build && pnpm run verify:package",
+    "prepack": "pnpm run verify:release",
+    "prepublishOnly": "node scripts/verify-publish-name.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Hyp6666/dsh-vision-bridge.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Hyp6666/dsh-vision-bridge/issues"
+  },
+  "homepage": "https://github.com/Hyp6666/dsh-vision-bridge#readme",
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "vision",
+    "multimodal",
+    "tool-plugin",
+    "openai-responses",
+    "openai",
+    "anthropic",
+    "typescript"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "packageManager": "pnpm@11.7.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "4.0.1",
+    "@deepseek-ai/dsh": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-agent": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-attachment": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-connection": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-conversation": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-credentials": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-fs": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-host-webserver": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-llm": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-skill": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-tools": "0.1.0-rc.6",
+    "@deepseek-ai/schemastery": "3.18.1"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-agent": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-connection": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-conversation": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-host-webserver": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.1",
+    "@deepseek-ai/dsh": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-agent": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-attachment": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-attachment-local": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-connection": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-conversation": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-credentials": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-fs": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-host-webserver": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-llm": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-skill": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-tools": "0.1.0-rc.6",
+    "@deepseek-ai/schemastery": "3.18.1",
+    "@types/node": "22.20.0",
+    "oxlint": "1.76.0",
+    "tsdown": "0.22.2",
+    "typescript": "6.0.3",
+    "vitest": "4.1.8"
+  }
+}

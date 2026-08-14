@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
+      - run: pnpm run lint
+      - run: pnpm run test
+      - run: pnpm run build
+      - run: npm pack --dry-run
+      - run: pnpm run test:e2e
+      - id: pack
+        run: |
+          filename=$(npm pack --json | node -e "let data='';process.stdin.on('data',c=>data+=c).on('end',()=>process.stdout.write(JSON.parse(data)[0].filename))")
+          echo "filename=$filename" >> "$GITHUB_OUTPUT"
+      - name: Upload tgz to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          TARBALL: ${{ steps.pack.outputs.filename }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$TARBALL" --clobber
+          else
+            gh release create "$TAG" "$TARBALL" --generate-notes --verify-tag
+          fi
+      - name: Publish through npm Trusted Publishing with provenance
+        if: ${{ vars.NPM_TRUSTED_PUBLISHING == 'true' }}
+        run: |
+          node scripts/verify-publish-name.mjs
+          npm publish "${{ steps.pack.outputs.filename }}" --access public --provenance

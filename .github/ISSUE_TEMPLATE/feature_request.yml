@@ -1,0 +1,35 @@
+name: Feature request
+description: Propose a scoped improvement to vision delegation.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the user need, not only a proposed API.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+    validations:
+      required: true
+  - type: dropdown
+    id: boundary
+    attributes:
+      label: Area
+      options:
+        - Tool contract
+        - OpenAI Responses
+        - OpenAI Chat Completions
+        - Anthropic Messages
+        - Image admission/security
+        - Documentation/lifecycle
+  - type: textarea
+    id: risks
+    attributes:
+      label: Privacy, security, and compatibility considerations
+    validations:
+      required: true
