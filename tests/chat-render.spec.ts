@@ -92,7 +92,7 @@ describe('chat node slot registration', () => {
   const apply = asyncApply
 
   function slotsService(stockFor: Record<string, (props: never) => unknown>) {
-    const registrations: { name: string; key: string; priority: number; dispose: () => void }[] = []
+    const registrations: { name: string; key: string; priority: number; locale?: string; dispose: () => void }[] = []
     const entries: { component: (props: never) => unknown; options: { key?: string; priority?: number | undefined } }[] =
       Object.entries(stockFor).map(([key, component]) => ({
         component,
@@ -100,8 +100,14 @@ describe('chat node slot registration', () => {
       }))
     return {
       value: {
-        register: vi.fn((options: { name: string; key: string; priority?: number }, component: (props: never) => unknown) => {
-          const record = { name: options.name, key: options.key, priority: options.priority ?? 0, dispose: () => {} }
+        register: vi.fn((options: { name: string; key: string; priority?: number; locale?: string }, component: (props: never) => unknown) => {
+          const record = {
+            name: options.name,
+            key: options.key,
+            priority: options.priority ?? 0,
+            ...(options.locale === undefined ? {} : { locale: options.locale }),
+            dispose: () => {},
+          }
           registrations.push(record)
           entries.push({
             component,
@@ -169,6 +175,7 @@ describe('chat node slot registration', () => {
     expect(slots.registrations).toHaveLength(2)
     expect(slots.registrations.map((r) => r.key).sort()).toEqual(['steering', 'user'])
     expect(slots.registrations.every((r) => r.name === 'conversation.chat.node' && r.priority < 0)).toBe(true)
+    expect(slots.registrations.every((r) => r.locale === 'conversation')).toBe(true)
     const before = slots.value.entries('conversation.chat.node').length
     ctx.dispose()
     expect(slots.value.entries('conversation.chat.node')).toHaveLength(before - 2)
@@ -183,10 +190,36 @@ describe('chat node slot registration', () => {
     const bridge = slots.value
       .entries('conversation.chat.node')
       .find((entry) => entry.options.key === 'user' && (entry.options.priority ?? 0) !== 0)
-    const props = { node: { kind: 'user', data: { content: [text('plain question')] } }, t: (k: string) => k }
+    const props = {
+      node: { kind: 'user', data: { content: [text('plain question')] } },
+      t: (k: string) => k,
+      loadImage: vi.fn(async () => 'blob:thumb'),
+    }
     const result = (bridge!.component as unknown as (p: unknown) => unknown)(props)
     expect(stock).toHaveBeenCalledWith(props)
     expect(result).toEqual({ stock: props })
+    ctx.dispose()
+  })
+
+  it('forwards the locale seat t to the stock renderer for a bridged message', () => {
+    const stock = vi.fn((props: never) => ({ stock: props }))
+    const slots = slotsService({ user: stock as (props: never) => unknown })
+    const ctx = context({ conversation: conversation(), connection: connection(), slots: slots.value })
+    apply(ctx.value)
+    const bridge = slots.value
+      .entries('conversation.chat.node')
+      .find((entry) => entry.options.key === 'user' && (entry.options.priority ?? 0) !== 0)
+    const t = (k: string) => k
+    const loadImage = vi.fn(async () => 'blob:thumb')
+    ;(bridge!.component as unknown as (p: unknown) => unknown)({
+      node: { kind: 'user', data: { content: [text(`Question\n\n${bridgeLink(1)}`)] } },
+      t,
+      loadImage,
+    })
+    const forwarded = stock.mock.calls[0]![0] as unknown as { t: unknown; loadImage: unknown; node: { kind: string } }
+    expect(forwarded.t).toBe(t)
+    expect(forwarded.loadImage).toBe(loadImage)
+    expect(forwarded.node.kind).toBe('user')
     ctx.dispose()
   })
 

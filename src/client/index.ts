@@ -28,6 +28,7 @@ const RENDER_MARKER = Symbol.for('dsh-vision-bridge.client.chat-render')
 const CORDIS_ORIGINAL = Symbol.for('cordis.original')
 const ACTIVE_ATTRIBUTE = 'data-dsh-vision-bridge-client'
 const CHAT_NODE_SLOT = 'conversation.chat.node'
+const CONVERSATION_NS = 'conversation'
 const REGISTRANT = '@hope666/dsh-vision-bridge/client'
 /** Below the stock renderer's priority 0; lowest renders, so this entry wins its cells. */
 const SHADOW_PRIORITY = -100
@@ -156,12 +157,15 @@ function stockRenderer(slots: SlotsServiceLike, key: string, props: never): unkn
  * conversation package declares `conversation.chat.node` and occupies the
  * `user`/`steering` cells at priority 0; this entry registers at a lower
  * priority (lowest renders), so it shadows both cells for the plugin's
- * lifetime and restores them exactly on disposal.
+ * lifetime and restores them exactly on disposal. The entry declares the
+ * conversation locale namespace so the renderer injects the same `t` seat
+ * the stock renderer relies on, which the projection passes through when it
+ * delegates rendering back to the stock component.
  */
 function registerChatNodePresentation(ctx: ClientContextLike, slots: SlotsServiceLike): void {
   const disposers = (['user', 'steering'] as const).map((key) =>
     slots.register(
-      { name: CHAT_NODE_SLOT, key, priority: SHADOW_PRIORITY, registrant: REGISTRANT },
+      { name: CHAT_NODE_SLOT, key, priority: SHADOW_PRIORITY, locale: CONVERSATION_NS, registrant: REGISTRANT },
       bridgeChatNodeRenderer(slots, key),
     ),
   )
