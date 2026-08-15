@@ -34,19 +34,22 @@ API keys are resolved through DSH Credential References and should never be plac
 
 Requirements:
 
-- Node.js `^22.19.0 || >=24.0.0`
+- Node.js `>=22.19.0`
 - DeepSeek Harness `0.1.0-rc.6`
 
 DSH profiles are independent. Install and configure the plugin separately in each profile where it is needed.
 
-### Option 1: ask DSH to install it
+### Option 1: ask another harness to install it
 
-Send this prompt to DSH:
+Any harness with Shell access and permission to manage local DSH profiles can perform the installation. Prefer a harness other than the DSH instance being modified: installing or updating the active DSH profile may require a restart and interrupt the current DSH task. If the harness cannot run local commands or edit the profile, use the manual steps below instead.
+
+Give the other harness this prompt:
 
 ```text
-Install dsh-open-eyes in my web profile and configure vision-bridge.
+Install dsh-open-eyes in my local DeepSeek Harness web profile and configure
+vision-bridge.
 
-Use the official installation command:
+Use the DeepSeek Harness plugin command:
 dsh plugin --profile web add dsh-open-eyes
 
 Use only a Credential Reference in the configuration. Do not put an API key
@@ -57,10 +60,11 @@ When finished, run:
 dsh --profile web --dump-config
 
 Confirm that vision-bridge and vision-bridge-skill are loaded, then remind me
-to restart dsh web and reload the page.
+to restart dsh web and reload the page. If changing the active profile would
+interrupt this task, stop after verification and let me restart it myself.
 ```
 
-### Option 2: install and configure it yourself
+### Option 2: install it yourself
 
 Install from npm:
 
@@ -74,7 +78,11 @@ You can also install the tarball attached to a GitHub Release:
 dsh plugin --profile web add ./dsh-open-eyes-0.1.0.tgz
 ```
 
-Then configure a vision provider in `~/.dsh/profiles/web/cordis.patch.yml`:
+Catalog inclusion is not required for either command: DSH installs the published npm package directly into the selected profile. To use the tool in a headless profile, replace `web` with `headless`. Profiles remain independent.
+
+## Configuration
+
+Configure a vision provider in `~/.dsh/profiles/web/cordis.patch.yml`:
 
 ```yaml
 - id: vision-bridge
@@ -108,7 +116,7 @@ dsh --profile web --dump-config
 
 After installing or updating the plugin, restart DSH Web and reload the page.
 
-### Start using it
+## Start using it
 
 Paste, drop, or select an image in the WebUI, write the question you intended to ask, and send it normally.
 
@@ -137,14 +145,31 @@ When enabled, the configured vision provider fetches the image URL. The plugin d
 
 The example above is the minimum configuration needed for a typical provider. Keep API keys in DSH Credential storage and place only the Credential Reference name in this file.
 
+## Permissions and data
+
+- When the bridge is used, the selected image and prompt are sent to the configured vision provider. Review that provider's privacy, retention, and billing terms.
+- Local image reads remain inside the Agent workspace and explicitly allowed roots by default. The plugin rejects final symlinks and validates supported image bytes before upload.
+- Remote image URLs are disabled by default. When enabled, the provider fetches the URL; the plugin does not download it locally.
+- Credentials are resolved from DSH Credential References for each call. They are not accepted in tool arguments, written to configuration, or cached by the plugin.
+- The Web bridge delegates only for a route explicitly declared text-only. Image-capable and unknown routes remain on DSH's native image path.
+- Retries are disabled by default. Enabling them can repeat a billable provider request after a transient failure.
+
 ## Compatibility
 
 - DeepSeek Harness: `0.1.0-rc.6`
-- Node.js: `^22.19.0 || >=24.0.0`
+- Node.js: `>=22.19.0`
 - Last verified: `2026-08-15`
 - Verified against DeepSeek Harness commit: `47f943859bef60e4160492346772ded9b24f765a`
 
 Web paste integration is pinned to the rc.6 conversation and model-capability seams. Recheck those seams before using the plugin with another DSH release line.
+
+## Troubleshooting
+
+- `VISION_NOT_CONFIGURED`: add at least one provider, set a valid default when needed, and—unless authentication is disabled—store the referenced credential in DSH.
+- The package installs but the rows are absent: confirm that installation and configuration used the same profile, then run `dsh --profile web --dump-config` and look for `vision-bridge` and `vision-bridge-skill`.
+- A pasted image stays on the native path: this is expected when the selected model supports images or its capability is unknown. The bridge activates only for an explicitly text-only route.
+- Installation from an active DSH task is interrupted: rerun the same `dsh plugin --profile web add dsh-open-eyes` command from a regular shell or another harness, verify with `--dump-config`, and restart DSH Web.
+- After an update, restart DSH Web and reload the browser before diagnosing client behavior.
 
 ## Uninstall and rollback
 
@@ -169,3 +194,24 @@ To return to the current release after testing another build, install its exact 
 ```sh
 dsh plugin --profile web add dsh-open-eyes@0.1.0
 ```
+
+## Development
+
+The repository uses pnpm and Node.js `>=22.19.0`:
+
+```sh
+corepack enable
+pnpm install --frozen-lockfile
+pnpm run typecheck
+pnpm run lint
+pnpm run test
+pnpm run build
+npm pack --dry-run
+pnpm run test:e2e
+```
+
+The E2E test packs the real npm tarball and exercises temporary-profile installation and removal without calling a paid vision API. See the [contribution guide](https://github.com/Hyp6666/dsh-open-eyes/blob/main/CONTRIBUTING.md) for repository conventions.
+
+## License and security
+
+Released under the [MIT License](./LICENSE). Report security issues privately as described in the [security policy](https://github.com/Hyp6666/dsh-open-eyes/blob/main/SECURITY.md); do not publish unpatched vulnerabilities, credentials, private images, or signed URLs in a public issue.

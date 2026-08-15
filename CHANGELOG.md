@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - Moved the essential compatibility, uninstall, and rollback guidance into the bilingual README files and removed the standalone `docs/` tree from the public repository and npm package.
+- Clarified that installation can be delegated to any harness with local Shell access, recommends using a harness other than the DSH instance being modified to avoid task interruption, and added concise configuration, data-boundary, troubleshooting, development, license, and security guidance to both README files.
+- Simplified the Node.js compatibility range to `>=22.19.0` across package metadata and documentation.
 
 ## [0.1.0] - 2026-08-15
 
