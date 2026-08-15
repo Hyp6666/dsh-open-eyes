@@ -32,7 +32,9 @@ jobs:
       - run: pnpm run test:e2e
       - id: pack
         run: |
-          filename=$(npm pack --json | node -e "let data='';process.stdin.on('data',c=>data+=c).on('end',()=>process.stdout.write(JSON.parse(data)[0].filename))")
+          # The preceding dry-run already executes prepack and verifies the
+          # release. Avoid lifecycle logs contaminating this JSON-only pipe.
+          filename=$(npm pack --ignore-scripts --json | node -e "let data='';process.stdin.on('data',c=>data+=c).on('end',()=>process.stdout.write(JSON.parse(data)[0].filename))")
           echo "filename=$filename" >> "$GITHUB_OUTPUT"
       - name: Upload tgz to GitHub Release
         env:
