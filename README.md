@@ -16,6 +16,8 @@ If the current main model already supports images, the plugin stays out of the w
 
 The plugin also provides the `vision_analyze` tool for analyzing local image paths and explicitly enabled remote image URLs.
 
+> **Unofficial community plugin:** `dsh-open-eyes` is an independent community project. It is not affiliated with, endorsed by, or maintained by DeepSeek.
+
 Three APIs are supported:
 
 - OpenAI Responses

@@ -16,6 +16,8 @@ DeepSeek Harness 的主模型不一定支持图片。遇到截图、照片、图
 
 插件也提供 `vision_analyze` 工具，可直接分析本地图片路径或已启用的远程图片 URL。
 
+> **非官方社区插件：**`dsh-open-eyes` 是独立的社区项目，与 DeepSeek 无隶属关系，也未经 DeepSeek 官方背书或维护。
+
 目前支持三种接口：
 
 - OpenAI Responses
