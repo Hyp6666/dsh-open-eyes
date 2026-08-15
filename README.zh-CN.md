@@ -134,4 +134,37 @@ allowRemoteUrls: true
 
 启用后，图片 URL 会交给所配置的视觉 Provider 获取，本插件不会先在本地下载。
 
-完整配置项见 [`docs/configuration.md`](./docs/configuration.md)。
+上面的示例是接入常见 Provider 所需的最小配置。API Key 应保存在 DSH Credential 来源中，配置文件里只能填写 Credential Reference 名称。
+
+## 兼容性
+
+- DeepSeek Harness：`0.1.0-rc.6`
+- Node.js：`^22.19.0 || >=24.0.0`
+- 最后验证日期：`2026-08-15`
+- 验证所依据的 DeepSeek Harness commit：`47f943859bef60e4160492346772ded9b24f765a`
+
+Web 图片粘贴功能依赖 rc.6 的会话与模型能力接口。适配其他 DSH 版本线之前，需要重新核验这些接口。
+
+## 卸载与回滚
+
+从安装插件的 profile 中移除软件包：
+
+```sh
+dsh plugin --profile web remove dsh-open-eyes
+```
+
+该命令会移除软件包及其 bundle 层。如果 `~/.dsh/profiles/web/cordis.patch.yml` 中仍有用户自行配置的 `vision-bridge` 或 `vision-bridge-skill` row，只删除这些 row，保留所有无关配置。
+
+检查卸载后的 profile：
+
+```sh
+dsh --profile web --dump-config
+```
+
+输出中不应再包含 `vision-bridge` 或 `vision-bridge-skill`。随后重启 DSH Web，并刷新浏览器页面。
+
+如果测试了其他构建，需要回到当前正式版本，可以重新安装精确版本：
+
+```sh
+dsh plugin --profile web add dsh-open-eyes@0.1.0
+```

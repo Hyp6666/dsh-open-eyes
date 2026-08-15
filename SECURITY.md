@@ -19,8 +19,6 @@ Include the affected version, impact, minimal reproduction, and suggested mitiga
 - Authentication headers never follow redirects. Successful response strings and upstream error summaries are redacted against the complete per-call protected-value set; public errors do not retain raw causes.
 - Dependencies are exact for development and public Harness seams remain peers. Release automation pins Actions by full commit SHA and uses a protected environment plus npm Trusted Publishing rather than a long-lived npm token.
 
-See [docs/security-model.md](docs/security-model.md) for the complete threat model and intentional non-goals.
-
 ## Supported versions
 
 Only the latest `0.1.x` release is eligible for security fixes during the initial release line.

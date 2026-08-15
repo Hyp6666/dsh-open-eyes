@@ -81,7 +81,7 @@ suite('packed package install in an isolated DSH web profile', () => {
     expect(tarEntries.some((entry) => entry.includes('src/'))).toBe(false)
     expect(tarEntries.some((entry) => entry.includes('tests/'))).toBe(false)
     expect(tarEntries.some((entry) => entry.includes('.env'))).toBe(false)
-    expect(tarEntries).not.toContain('package/docs/release.md')
+    expect(tarEntries.some((entry) => entry.startsWith('package/docs/'))).toBe(false)
     expect(tarEntries).not.toContain('package/AGENTS.md')
     expect(tarEntries).not.toContain('package/CONTRIBUTING.md')
     expect(tarEntries).not.toContain('package/SECURITY.md')

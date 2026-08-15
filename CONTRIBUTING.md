@@ -19,7 +19,7 @@ Unit and adapter tests use Node's native local HTTP server and never call a paid
 
 ## Contract changes
 
-Each adapter owns its request URL, headers, JSON body, image representations, parser, usage mapping, request id, finish reason, and protocol errors. A wire change must update the relevant adapter test and [docs/protocol-contracts.md](docs/protocol-contracts.md). Do not replace the three adapters with a generic compatibility function or add provider SDKs.
+Each adapter owns its request URL, headers, JSON body, image representations, parser, usage mapping, request id, finish reason, and protocol errors. A wire change must update the relevant exact request/response contract test. Do not replace the three adapters with a generic compatibility function or add provider SDKs.
 
 Business images must continue to flow through `ctx.fs` and `ctx.attachments`; credentials must continue to flow through `ctx.credentials`. Test fixtures may use Node filesystem APIs, but runtime business-image admission may not.
 

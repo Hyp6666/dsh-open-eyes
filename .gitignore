@@ -4,6 +4,7 @@ lib/
 *.tgz
 .DS_Store
 coverage/
+docs/
 .env
 .env.*
 !.env.example

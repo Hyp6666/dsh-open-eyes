@@ -52,7 +52,7 @@ if (!readmeZh.includes('href="./README.md">English</a>') || !readmeZh.includes('
 if (!manifest.files?.includes('assets/dsh-open-eyes.png')) {
   throw new Error('README artwork is missing from the npm files allowlist')
 }
-for (const repositoryOnlyPath of ['src/', 'tests/', '.github/', 'docs/release.md', 'SECURITY.md', 'CONTRIBUTING.md', 'AGENTS.md']) {
+for (const repositoryOnlyPath of ['src/', 'tests/', '.github/', 'docs/', 'SECURITY.md', 'CONTRIBUTING.md', 'AGENTS.md']) {
   if (manifest.files?.includes(repositoryOnlyPath)) {
     throw new Error(`repository-only path must not be published: ${repositoryOnlyPath}`)
   }

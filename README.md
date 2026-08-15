@@ -135,4 +135,37 @@ allowRemoteUrls: true
 
 When enabled, the configured vision provider fetches the image URL. The plugin does not download the remote image locally first.
 
-See [`docs/configuration.md`](./docs/configuration.md) for the complete configuration reference.
+The example above is the minimum configuration needed for a typical provider. Keep API keys in DSH Credential storage and place only the Credential Reference name in this file.
+
+## Compatibility
+
+- DeepSeek Harness: `0.1.0-rc.6`
+- Node.js: `^22.19.0 || >=24.0.0`
+- Last verified: `2026-08-15`
+- Verified against DeepSeek Harness commit: `47f943859bef60e4160492346772ded9b24f765a`
+
+Web paste integration is pinned to the rc.6 conversation and model-capability seams. Recheck those seams before using the plugin with another DSH release line.
+
+## Uninstall and rollback
+
+Remove the package from the profile where it was installed:
+
+```sh
+dsh plugin --profile web remove dsh-open-eyes
+```
+
+The command removes the package and its bundle layer. If `~/.dsh/profiles/web/cordis.patch.yml` still contains user-authored rows with the ids `vision-bridge` or `vision-bridge-skill`, remove only those rows and preserve every unrelated entry.
+
+Verify the resulting profile:
+
+```sh
+dsh --profile web --dump-config
+```
+
+The output should contain neither `vision-bridge` nor `vision-bridge-skill`. Restart DSH Web and reload the browser page afterward.
+
+To return to the current release after testing another build, install its exact version again:
+
+```sh
+dsh plugin --profile web add dsh-open-eyes@0.1.0
+```

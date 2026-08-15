@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- Moved the essential compatibility, uninstall, and rollback guidance into the bilingual README files and removed the standalone `docs/` tree from the public repository and npm package.
+
 ## [0.1.0] - 2026-08-15
 
 ### Added
