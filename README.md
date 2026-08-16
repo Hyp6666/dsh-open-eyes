@@ -12,6 +12,8 @@
 
 The main model used by DeepSeek Harness does not always support images. When a conversation involves a screenshot, photo, chart, or interface, `dsh-open-eyes` can send the image to a separately configured multimodal model and return its analysis as text to the current conversation.
 
+The analysis remains part of the same conversation as ordinary text.
+
 If the current main model already supports images, the plugin stays out of the way and DSH keeps using its native image path. Images pasted, dropped, or selected in the WebUI are bridged only when the current model is explicitly known not to support images.
 
 The plugin also provides the `vision_analyze` tool for analyzing local image paths and explicitly enabled remote image URLs.
