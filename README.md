@@ -20,7 +20,7 @@ The plugin also provides the `vision_analyze` tool for analyzing local image pat
 
 > **Unofficial community plugin:** `dsh-open-eyes` is an independent community project. It is not affiliated with, endorsed by, or maintained by DeepSeek.
 
-Three APIs are supported:
+Three provider API formats are supported:
 
 - OpenAI Responses
 - OpenAI Chat Completions
